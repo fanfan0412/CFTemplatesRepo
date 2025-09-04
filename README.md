@@ -99,3 +99,34 @@ CodeBuild 服務角色需要下列最小權限（把 ACCOUNT_ID、REGION、SITE_
     }
   ]
 }
+
+flowchart LR
+  user((End User)):::user
+
+  %% === CDN Static Site Path ===
+  user -- HTTPS --> cf[CloudFront Distribution]:::cf
+  cf -- OAC (signed) --> s3[(S3 Site Bucket\ncafe-frontend-<account>-ap-northeast-1)]:::s3
+  note over cf,s3: Bucket Policy 僅允許 CloudFront OAC 存取
+
+  %% === Optional Dynamic/API Path ===
+  user -- HTTP/HTTPS --> ec2[EC2 CafeInstance\nSecurityGroup: 80/22]:::ec2
+
+  %% === Account / Region Context ===
+  subgraph acct[AWS Account (ap-northeast-1)]
+    ssm[(SSM Parameter Store\n/cafe/frontend/bucket\n/cafe/frontend/distribution)]:::ssm
+    cf --- ssm
+    subgraph vpc[ Cafe VPC ]
+      igw[Internet Gateway]:::igw
+      subgraph pub[Public Subnet]
+        ec2
+      end
+      igw --- ec2
+    end
+  end
+
+  classDef user fill:#fff,stroke:#555,color:#111
+  classDef cf fill:#f6f8ff,stroke:#4c6ef5,stroke-width:1.5px
+  classDef s3 fill:#fdf6ec,stroke:#f59f00
+  classDef ec2 fill:#fff7f7,stroke:#fa5252
+  classDef ssm fill:#eefbea,stroke:#37b24d
+  classDef igw fill:#eee,stroke:#888
