@@ -8,8 +8,10 @@
 
 > 預設區域：**ap-northeast-1 (Tokyo)**  
 > 建議在 **AWS CloudShell** 執行以下指令（內建 AWS CLI）。
-
 ---
+## Live (Frontend via CloudFront)
+https://diqh11tmow6os.cloudfront.net/
+
 
 ## 目錄結構
 ```
