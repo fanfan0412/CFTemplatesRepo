@@ -46,6 +46,7 @@ aws cloudformation deploy \
   --template-file $REPO_ROOT/templates/frontend-stack.yaml \
   --parameter-overrides SiteBucketName=${SITE_BUCKET} \
   --capabilities CAPABILITY_NAMED_IAM
+```
 
 部署完成後會有：
 1.SSM 參數：
@@ -53,17 +54,21 @@ aws cloudformation deploy \
 /cafe/frontend/distribution：CloudFront Distribution ID
 2.CloudFormation 輸出（在 the-cafe-frontend 堆疊的 Outputs 可看到 CloudFront 網域）
 
+---
 
 **前端 CI/CD（與 cathay-frontend repo 串接）**
-流程
-在 CodePipeline 建一個 pipeline（Source=GitHub，Build=CodeBuild）。
-CodeBuild 專案 Source 選 CodePipeline，在前端 repo 放置 buildspec.yml（見該 repo）。
-CodeBuild 服務角色需要下列最小權限（把 ACCOUNT_ID、REGION、SITE_BUCKET 改成你的）：
+建議流程
+1.在 CodePipeline 建一個 pipeline（Source=GitHub，Build=CodeBuild）。
+Source：GitHub（指向 cathay-frontend 的 main 分支）
+Build：CodeBuild（Source from CodePipeline）
+2.CodeBuild 專案 Source 選 CodePipeline，在前端 repo 放置 buildspec.yml（見該 repo）。
+3.CodeBuild 服務角色最小權限（請替換尖括號處）
+```
 {
   "Version": "2012-10-17",
   "Statement": [
-    // 讀 pipeline artifacts（由 CodePipeline 傳入）
     {
+      "Sid": "ReadArtifactsBucket",
       "Effect": "Allow",
       "Action": ["s3:GetObject","s3:GetObjectVersion","s3:ListBucket"],
       "Resource": [
@@ -71,62 +76,56 @@ CodeBuild 服務角色需要下列最小權限（把 ACCOUNT_ID、REGION、SITE_
         "arn:aws:s3:::<YOUR-ARTIFACTS-BUCKET>/*"
       ]
     },
-    // 寫入前端網站桶
     {
+      "Sid": "PublishToSiteBucket",
       "Effect": "Allow",
       "Action": ["s3:ListBucket","s3:GetBucketLocation"],
-      "Resource": "arn:aws:s3:::cafe-frontend-ACCOUNT_ID-REGION"
+      "Resource": "arn:aws:s3:::cafe-frontend-<ACCOUNT_ID>-ap-northeast-1"
     },
     {
+      "Sid": "WriteObjectsToSiteBucket",
       "Effect": "Allow",
       "Action": ["s3:PutObject","s3:DeleteObject","s3:PutObjectTagging","s3:DeleteObjectTagging"],
-      "Resource": "arn:aws:s3:::cafe-frontend-ACCOUNT_ID-REGION/*"
+      "Resource": "arn:aws:s3:::cafe-frontend-<ACCOUNT_ID>-ap-northeast-1/*"
     },
-    // 建立 CloudFront 失效
     {
+      "Sid": "InvalidateCloudFront",
       "Effect": "Allow",
       "Action": ["cloudfront:CreateInvalidation","cloudfront:GetInvalidation","cloudfront:ListInvalidations"],
-      "Resource": "arn:aws:cloudfront::ACCOUNT_ID:distribution/<DISTRIBUTION_ID>"
+      "Resource": "arn:aws:cloudfront::<ACCOUNT_ID>:distribution/<DISTRIBUTION_ID>"
     },
-    // 讀取 SSM 參數
     {
+      "Sid": "ReadSSMParameters",
       "Effect": "Allow",
       "Action": ["ssm:GetParameter","ssm:GetParameters","ssm:DescribeParameters"],
       "Resource": [
-        "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/cafe/frontend/bucket",
-        "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/cafe/frontend/distribution"
+        "arn:aws:ssm:ap-northeast-1:<ACCOUNT_ID>:parameter/cafe/frontend/bucket",
+        "arn:aws:ssm:ap-northeast-1:<ACCOUNT_ID>:parameter/cafe/frontend/distribution"
       ]
     }
   ]
 }
 
-flowchart LR
-  user((End User)):::user
+```
 
-  %% === CDN Static Site Path ===
-  user -- HTTPS --> cf[CloudFront Distribution]:::cf
-  cf -- OAC (signed) --> s3[(S3 Site Bucket\ncafe-frontend-<account>-ap-northeast-1)]:::s3
-  note over cf,s3: Bucket Policy 僅允許 CloudFront OAC 存取
+---
 
-  %% === Optional Dynamic/API Path ===
-  user -- HTTP/HTTPS --> ec2[EC2 CafeInstance\nSecurityGroup: 80/22]:::ec2
+**架構圖**
+```mermaid
+graph LR
+  Dev1[Developer] -->|git push| GH1[GitHub CFTemplatesRepo]
+  GH1 --> CP1[CodePipeline IaC]
+  CP1 --> CFN[CloudFormation Stacks]
+  CFN --> S3[S3 Site Bucket]
+  CFN --> CF[CloudFront CDN]
 
-  %% === Account / Region Context ===
-  subgraph acct[AWS Account (ap-northeast-1)]
-    ssm[(SSM Parameter Store\n/cafe/frontend/bucket\n/cafe/frontend/distribution)]:::ssm
-    cf --- ssm
-    subgraph vpc[ Cafe VPC ]
-      igw[Internet Gateway]:::igw
-      subgraph pub[Public Subnet]
-        ec2
-      end
-      igw --- ec2
-    end
-  end
+  Dev2[Developer] -->|git push| GH2[GitHub cathay-frontend]
+  GH2 --> CP2[CodePipeline Frontend]
+  CP2 --> CB[CodeBuild]
+  CB -->|sync dist| S3
+  CB -->|invalidate| CF
 
-  classDef user fill:#fff,stroke:#555,color:#111
-  classDef cf fill:#f6f8ff,stroke:#4c6ef5,stroke-width:1.5px
-  classDef s3 fill:#fdf6ec,stroke:#f59f00
-  classDef ec2 fill:#fff7f7,stroke:#fa5252
-  classDef ssm fill:#eefbea,stroke:#37b24d
-  classDef igw fill:#eee,stroke:#888
+  User[End User] --> CF
+```
+
+
