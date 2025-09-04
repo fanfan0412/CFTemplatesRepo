@@ -12,11 +12,12 @@
 ---
 
 ## 目錄結構
+```
 templates/
 ├─ cafe-network.yaml # VPC / 公有子網（輸出 SubnetID / VpcID 並 Export）
 ├─ cafe-app.yaml # EC2 + SG（UserData 安裝 Apache/MariaDB/PHP）
 └─ frontend-stack.yaml # S3 + CloudFront + SSM 參數（/cafe/frontend/*）
-
+```
 ---
 
 ## 快速開始（CloudShell）
@@ -49,20 +50,21 @@ aws cloudformation deploy \
 ```
 
 部署完成後會有：
-1.SSM 參數：
-/cafe/frontend/bucket：網站 S3 桶名（例如 cafe-frontend-<acct>-ap-northeast-1）
-/cafe/frontend/distribution：CloudFront Distribution ID
-2.CloudFormation 輸出（在 the-cafe-frontend 堆疊的 Outputs 可看到 CloudFront 網域）
+* SSM 參數：
+  * /cafe/frontend/bucket：網站 S3 桶名（例如 cafe-frontend-<acct>-ap-northeast-1）
+  * /cafe/frontend/distribution：CloudFront Distribution ID
+* CloudFormation 輸出（在 the-cafe-frontend 堆疊的 Outputs 可看到 CloudFront 網域）
 
 ---
 
-**前端 CI/CD（與 cathay-frontend repo 串接）**
-建議流程
-1.在 CodePipeline 建一個 pipeline（Source=GitHub，Build=CodeBuild）。
-Source：GitHub（指向 cathay-frontend 的 main 分支）
-Build：CodeBuild（Source from CodePipeline）
-2.CodeBuild 專案 Source 選 CodePipeline，在前端 repo 放置 buildspec.yml（見該 repo）。
-3.CodeBuild 服務角色最小權限（請替換尖括號處）
+# 前端 CI/CD（與 cathay-frontend repo 串接）
+## 建議流程
+1. 在 CodePipeline 建一個 pipeline（Source=GitHub，Build=CodeBuild）。
+  * Source：GitHub（指向 cathay-frontend 的 main 分支）
+  * Build：CodeBuild（Source from CodePipeline）
+2. CodeBuild 專案 Source 選 CodePipeline，在前端 repo 放置 buildspec.yml（見該 repo）。
+3. 給 CodeBuild 服務角色 最小權限（下方 JSON）
+> Artifacts Bucket 名稱可從該 Pipeline 第一次建立時自動產生的 S3 桶取得。
 ```
 {
   "Version": "2012-10-17",
@@ -107,7 +109,7 @@ Build：CodeBuild（Source from CodePipeline）
 }
 
 ```
-
+> 先求快也可暫用 AmazonSSMReadOnlyAccess，之後再收斂到上面最小集。
 ---
 
 **架構圖**
@@ -127,5 +129,12 @@ graph LR
 
   User[End User] --> CF
 ```
-
-
+---
+## 清理
+1. 清空前端 S3 桶 → 刪除 the-cafe-frontend 堆疊
+2. 刪除 cafe-app → 刪除 cafe-network（若有 Export 依賴需先移除）
+3. 刪除 SSM 參數 /cafe/frontend/*
+4. 若有自訂網域或 ACM 憑證，先在 CloudFront 解除綁定再刪
+---
+## 相關連結
+* Frontend（React）：https://github.com/fanfan0412/cathay-frontend
