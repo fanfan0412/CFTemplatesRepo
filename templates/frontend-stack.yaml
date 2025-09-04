@@ -1,16 +1,11 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Frontend stack for React app (S3 + CloudFront OAC + SSM)
-
-Parameters:
-  SiteBucketName:
-    Type: String
-    Description: Globally-unique bucket name (e.g. cafe-frontend-yourid-apne1)
+Description: Frontend stack for React app (S3 + CloudFront OAC + SSM, no parameters)
 
 Resources:
   SiteBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Ref SiteBucketName
+      BucketName: !Sub 'cafe-frontend-${AWS::AccountId}-${AWS::Region}'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -45,7 +40,6 @@ Resources:
           CachedMethods: [GET, HEAD, OPTIONS]
           Compress: true
           ForwardedValues: { QueryString: false }
-        # 讓 React Router 直接刷新內頁不 404
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
@@ -56,8 +50,10 @@ Resources:
             ResponsePagePath: /index.html
             ErrorCachingMinTTL: 0
 
+  # 重要：讓 CloudFront (OAC) 以 SourceArn 的方式讀 S3 物件
   BucketPolicy:
     Type: AWS::S3::BucketPolicy
+    DependsOn: Distribution
     Properties:
       Bucket: !Ref SiteBucket
       PolicyDocument:
@@ -65,12 +61,13 @@ Resources:
         Statement:
           - Sid: AllowCloudFrontOAC
             Effect: Allow
-            Principal: { Service: cloudfront.amazonaws.com }
+            Principal:
+              Service: cloudfront.amazonaws.com
             Action: s3:GetObject
             Resource: !Sub 'arn:aws:s3:::${SiteBucket}/*'
             Condition:
               StringEquals:
-                AWS:SourceArn: !GetAtt Distribution.Arn
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
 
   FrontendBucketParam:
     Type: AWS::SSM::Parameter
@@ -87,6 +84,9 @@ Resources:
       Value: !Ref Distribution
 
 Outputs:
-  BucketName:       { Value: !Ref SiteBucket }
-  CloudFrontDomain: { Value: !GetAtt Distribution.DomainName }
-  DistributionId:   { Value: !Ref Distribution }
+  BucketName:
+    Value: !Ref SiteBucket
+  CloudFrontDomain:
+    Value: !GetAtt Distribution.DomainName
+  DistributionId:
+    Value: !Ref Distribution
