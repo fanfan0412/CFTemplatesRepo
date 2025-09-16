@@ -59,10 +59,10 @@ aws cloudformation deploy \
 
 ---
 
-# 前端 CI/CD（與 cathay-frontend repo 串接）
+# 前端 CI/CD（與 for-IaS-frontend repo 串接）
 ## 建議流程
 1. 在 CodePipeline 建一個 pipeline（Source=GitHub，Build=CodeBuild）。
-  * Source：GitHub（指向 cathay-frontend 的 main 分支）
+  * Source：GitHub（指向 for-IaS-frontend 的 main 分支）
   * Build：CodeBuild（Source from CodePipeline）
 2. CodeBuild 專案 Source 選 CodePipeline，在前端 repo 放置 buildspec.yml（見該 repo）。
 3. 給 CodeBuild 服務角色 最小權限（下方 JSON）
@@ -123,7 +123,7 @@ graph LR
   CFN --> S3[S3 Site Bucket]
   CFN --> CF[CloudFront CDN]
 
-  Dev2[Developer] -->|git push| GH2[GitHub cathay-frontend]
+  Dev2[Developer] -->|git push| GH2[GitHub for-IaS-frontend]
   GH2 --> CP2[CodePipeline Frontend]
   CP2 --> CB[CodeBuild]
   CB -->|sync dist| S3
@@ -139,4 +139,4 @@ graph LR
 4. 若有自訂網域或 ACM 憑證，先在 CloudFront 解除綁定再刪
 ---
 ## 相關連結
-* Frontend（React）：https://github.com/fanfan0412/cathay-frontend
+* Frontend（React）：https://github.com/fanfan0412/for-IaS-frontend
